@@ -1,51 +1,74 @@
 #include <sys/mman.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
 
+#include "../vsd_driver/vsd_ioctl.h"
 #include "vsd_device.h"
 
-int vsd_init()
-{
-    // TODO
-    return -1;
+const char* DEV_NAME = "/dev/vsd";
+
+static int fd = -1;
+
+int vsd_init() {
+    fd = open(DEV_NAME, O_RDWR);
+    return (fd != -1) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-int vsd_deinit()
-{
-    // TODO
-    return -1;
+int vsd_deinit() {
+    return close(fd);
 }
 
-int vsd_get_size(size_t *out_size)
-{
-    // TODO
-    return -1;
+int vsd_get_size(size_t *out_size) {
+    vsd_ioctl_get_size_arg_t sz;
+    int error = ioctl(fd, VSD_IOCTL_GET_SIZE, &sz);
+    if (error) {
+        return error;
+    }
+    *out_size = sz.size;
+    return EXIT_SUCCESS;
 }
 
-int vsd_set_size(size_t size)
-{
-    // TODO
-    return -1;
+int vsd_set_size(size_t size) {
+    vsd_ioctl_set_size_arg_t sz;
+    sz.size = size;
+    return ioctl(fd, VSD_IOCTL_SET_SIZE, &sz);
 }
 
-ssize_t vsd_read(char* dst, off_t offset, size_t size)
-{
-    // TODO
-    return -1;
+ssize_t vsd_read(char* dst, off_t offset, size_t size) {
+    int error = lseek(fd, offset, SEEK_SET);
+    if (error < 0) {
+        return error;
+    }
+    return read(fd, dst, size);
 }
 
-ssize_t vsd_write(const char* src, off_t offset, size_t size)
-{
-    // TODO
-    return -1;
+ssize_t vsd_write(const char* src, off_t offset, size_t size) {
+    int error = lseek(fd, offset, SEEK_SET);
+    if (error < 0) {
+        return error;
+    }
+    return write(fd, src, size);
 }
 
-void* vsd_mmap(size_t offset)
-{
-    // TODO
-    return MAP_FAILED;
+void* vsd_mmap(size_t offset) {
+    size_t sz = -1;
+    size_t page_sz = (size_t) getpagesize();
+    if (offset % page_sz != 0) {
+        return MAP_FAILED;
+    }
+
+    vsd_get_size(&sz);
+    return mmap(NULL, sz - offset, PROT_WRITE | PROT_READ, MAP_SHARED, fd, offset);
 }
 
-int vsd_munmap(void* addr, size_t offset)
-{
-    // TODO
-    return -1;
+int vsd_munmap(void* addr, size_t offset) {
+    size_t sz = -1;
+    size_t page_sz = (size_t) getpagesize();
+    if (offset % page_sz != 0) {
+        return EXIT_FAILURE;
+    }
+
+    vsd_get_size(&sz);
+    return munmap(addr, sz - offset);
 }
